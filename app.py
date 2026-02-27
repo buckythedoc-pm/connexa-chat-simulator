@@ -1,114 +1,169 @@
 import streamlit as st
 import requests
 import time
+import uuid
 
-# =========================
+# ======================
 # CONFIG
-# =========================
+# ======================
 
-WEBHOOK_URL = "PASTE_YOUR_N8N_WEBHOOK_URL_HERE"
+WEBHOOK_URL = "https://pmswetha.app.n8n.cloud/webhook/connexai"
 
 st.set_page_config(
-    page_title="Connexa AI Simulator",
-    page_icon="🤖",
+    page_title="Connexa AI",
     layout="wide"
 )
 
-st.title("🤖 Connexa AI Support Simulator")
-
-# =========================
+# ======================
 # SESSION STATE
-# =========================
+# ======================
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if "session_id" not in st.session_state:
+    st.session_state.session_id = str(uuid.uuid4())
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# =========================
-# SIDEBAR (Enterprise Feel)
-# =========================
+# ======================
+# CUSTOM CSS (Lovable style)
+# ======================
 
-with st.sidebar:
-    st.success("🟢 AI Agent Active")
-    st.markdown("### Session Insights")
-    
-    st.metric("Sentiment", "—")
-    st.metric("Churn Risk", "—")
-    st.metric("Resolution Probability", "—")
+st.markdown("""
+<style>
 
-# =========================
-# DISPLAY CHAT HISTORY
-# =========================
+.hero {
+    background: linear-gradient(90deg, #ff3b2f, #ff6a3d);
+    padding: 80px;
+    border-radius: 10px;
+    color: white;
+}
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.write(msg["content"])
+.chat-box {
+    position: fixed;
+    right: 30px;
+    bottom: 30px;
+    width: 350px;
+    height: 500px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0px 4px 25px rgba(0,0,0,0.2);
+    padding: 15px;
+    overflow-y: auto;
+}
 
-# =========================
-# USER INPUT
-# =========================
+.chat-header {
+    background: #ff4b2b;
+    color: white;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
 
-user_input = st.chat_input("Describe your telecom issue...")
+</style>
+""", unsafe_allow_html=True)
 
-if user_input:
+# ======================
+# LOGIN PAGE
+# ======================
 
-    # Add user message
-    st.session_state.messages.append({
-        "role": "user",
-        "content": user_input
-    })
+if not st.session_state.logged_in:
 
-    with st.chat_message("user"):
-        st.write(user_input)
+    st.title("Connexa Login")
 
-    # =========================
-    # CALL N8N WEBHOOK
-    # =========================
+    username = st.text_input("Enter your name")
 
-    payload = {
-        "message": user_input,
-        "user_id": "demo_user"
-    }
+    if st.button("Login"):
 
-    with st.chat_message("assistant"):
+        if username:
+            st.session_state.logged_in = True
+            st.session_state.user_name = username
+            st.rerun()
+        else:
+            st.warning("Please enter your name")
 
-        typing_placeholder = st.empty()
-        
-        # Typing animation
-        typing_placeholder.markdown("⏳ *Connexa AI is typing...*")
-        
-        try:
-            response = requests.post(WEBHOOK_URL, json=payload, timeout=60)
-            data = response.json()
+    st.stop()
 
-            ai_reply = data.get("reply", "I couldn't process that request.")
-            ticket_created = data.get("ticket_created", False)
+# ======================
+# HERO SECTION
+# ======================
 
-        except:
-            ai_reply = "⚠️ Error connecting to AI system."
-            ticket_created = False
+st.markdown(f"""
+<div class="hero">
+    <h1>How can we help you today?</h1>
+    <p>Get instant AI-powered support for all your telecom needs.</p>
+    <p><b>Welcome, {st.session_state.user_name}</b></p>
+</div>
+""", unsafe_allow_html=True)
 
-        typing_placeholder.empty()
+st.write("")
+st.write("")
 
-        # =========================
-        # REALISTIC TYPING EFFECT
-        # =========================
+# ======================
+# FLOATING CHAT CONTAINER
+# ======================
 
-        message_placeholder = st.empty()
-        full_text = ""
+chat_container = st.container()
 
-        for chunk in ai_reply.split():
-            full_text += chunk + " "
-            message_placeholder.markdown(full_text + "▌")
-            time.sleep(0.03)
+with chat_container:
 
-        message_placeholder.markdown(full_text)
+    st.markdown('<div class="chat-header">Connexa AI Support</div>', unsafe_allow_html=True)
 
-        # Ticket alert
-        if ticket_created:
-            st.warning("🚨 Support Ticket Automatically Created")
+    # Display messages
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.write(msg["content"])
 
-    # Save assistant message
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": ai_reply
-    })
+    user_input = st.chat_input("Describe your issue...")
+
+    if user_input:
+
+        # Save user message
+        st.session_state.messages.append({
+            "role": "user",
+            "content": user_input
+        })
+
+        with st.chat_message("user"):
+            st.write(user_input)
+
+        payload = {
+            "user_name": st.session_state.user_name,
+            "session_id": st.session_state.session_id,
+            "message": user_input
+        }
+
+        with st.chat_message("assistant"):
+
+            typing_placeholder = st.empty()
+            typing_placeholder.markdown("⏳ Connexa AI is typing...")
+
+            try:
+                response = requests.post(WEBHOOK_URL, json=payload, timeout=60)
+                data = response.json()
+
+                ai_reply = data.get("reply", "No response from AI")
+
+            except:
+                ai_reply = "⚠️ Error connecting to AI system"
+
+            typing_placeholder.empty()
+
+            # Typing animation
+            message_placeholder = st.empty()
+            full_text = ""
+
+            for word in ai_reply.split():
+                full_text += word + " "
+                message_placeholder.markdown(full_text + "▌")
+                time.sleep(0.03)
+
+            message_placeholder.markdown(full_text)
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": ai_reply
+        })
